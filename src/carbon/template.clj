@@ -23,24 +23,29 @@
 (declare process)
 (declare process-argument)
 
+(defn zoom [-map -path]
+  (if (coll? -path)
+    (get-in -map -path)
+    (get -map -path)))
+
 (def render-template
   #:carbon.template{:default (fn -default [ctx var-path templ]
-                               (let [arg (get-in ctx var-path)]
+                               (let [arg (zoom ctx var-path)]
                                  (process-argument ctx
                                    (if (some? arg)
                                      arg
                                      templ))))
                     :get (fn -get [ctx var-path]
-                              (get-in ctx var-path))
+                              (zoom ctx var-path))
                     :extend-with (fn -extend-with [ctx var-name]
-                                   (process (read-resource (get-in ctx var-name))
+                                   (process (read-resource (zoom ctx var-name))
                                             ctx))
                     :extend-from (fn -extend-from [ctx path]
                                    (process (read-resource path)
                                             ctx))
                     :component (fn -component [ctx path ctx-path]
                                  (process (read-resource path)
-                                          (get-in ctx ctx-path)))
+                                          (zoom ctx ctx-path)))
                     :map (fn -map [ctx tag -fn & args]
                            (let [fn-args (vec (butlast args))
                                  coll (last args)
