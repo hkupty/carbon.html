@@ -1,0 +1,2 @@
+[:div
+ [:p [:carbon.template/get :data]]]

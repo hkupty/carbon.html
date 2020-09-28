@@ -1,0 +1,4 @@
+{:head [:title [:carbon.template/default :title "Something something"]]
+ :body [:div
+        [:article [:carbon.template/extend-with :content-template]]
+        [:span [:carbon.template/extend-from "sample/content-template.edn"]]]}

@@ -1,0 +1,3 @@
+{:title "Something else"
+ :content-template "sample/content-template.edn"
+ :data "Hello, Carbon!"}
