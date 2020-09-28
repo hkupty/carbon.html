@@ -48,11 +48,10 @@
                                           (zoom ctx ctx-path)))
                     :map (fn -map [ctx tag -fn & args]
                            (let [fn-args (vec (butlast args))
-                                 coll (last args)
-                                 render-fn (get render-template -fn)]
+                                 coll (last args)]
                              (into [tag]
                                  (map (fn [item]
-                                        (apply render-fn ctx (conj fn-args item))))
+                                        (apply -fn ctx (conj fn-args item))))
                                  coll)))
                     :include (fn -include [_ path]
                                (hu/raw-string (slurp path)))})
