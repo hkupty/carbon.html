@@ -6,6 +6,9 @@
             [hiccup.util :as hu]
             [clojure.java.io :as io]))
 
+(defn read-resource [resource]
+  (edn/read-string (slurp (io/reader (io/resource resource)))))
+
 (def template-functions
   #:carbon.fn{:str str})
 
@@ -21,22 +24,23 @@
 (declare process-argument)
 
 (def render-template
-  #:carbon.template{:default (fn -default [ctx var-name templ]
-                               (let [arg (get ctx var-name)]
+  #:carbon.template{:default (fn -default [ctx var-path templ]
+                               (let [arg (get-in ctx var-path)]
                                  (process-argument ctx
                                    (if (some? arg)
                                      arg
                                      templ))))
-                    :get-in (fn -get-in [ctx var-path]
+                    :get (fn -get [ctx var-path]
                               (get-in ctx var-path))
-                    :get (fn -get [ctx var-name]
-                           (get ctx var-name))
                     :extend-with (fn -extend-with [ctx var-name]
-                                   (process (edn/read-string (slurp (io/reader (io/resource (get ctx var-name)))))
+                                   (process (read-resource (get-in ctx var-name))
                                             ctx))
                     :extend-from (fn -extend-from [ctx path]
-                                   (process (edn/read-string (slurp (io/reader (io/resource path))))
+                                   (process (read-resource path)
                                             ctx))
+                    :component (fn -component [ctx path ctx-path]
+                                 (process (read-resource path)
+                                          (get-in ctx ctx-path)))
                     :include (fn -include [_ path]
                                (hu/raw-string (slurp path)))})
 
