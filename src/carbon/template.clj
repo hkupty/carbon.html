@@ -41,6 +41,14 @@
                     :component (fn -component [ctx path ctx-path]
                                  (process (read-resource path)
                                           (get-in ctx ctx-path)))
+                    :map (fn -map [ctx tag -fn & args]
+                           (let [fn-args (vec (butlast args))
+                                 coll (last args)
+                                 render-fn (get render-template -fn)]
+                             (into [tag]
+                                 (map (fn [item]
+                                        (apply render-fn ctx (conj fn-args item))))
+                                 coll)))
                     :include (fn -include [_ path]
                                (hu/raw-string (slurp path)))})
 
