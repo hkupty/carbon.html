@@ -75,10 +75,10 @@
     tree))
 
 (defn render [tag templ content]
-  [tag
-   (process templ content)])
+  (into [tag]
+       (process templ content)))
 
 (defn apply-template [content {:keys [head body]}]
-  (p/html5 {}
+  (p/html5 {:mode :html}
            (render :head head content)
            (render :body body content)))
