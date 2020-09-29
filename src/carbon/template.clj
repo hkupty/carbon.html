@@ -26,39 +26,46 @@
     (get -map -path)))
 
 (def render-template
-  #:carbon.template{:default (fn -default [ctx var-path templ]
-                               (let [arg (zoom ctx var-path)]
-                                 (process-argument ctx
-                                   (if (some? arg)
-                                     arg
-                                     templ))))
-                    :get (fn -get [ctx var-path]
-                              (zoom ctx var-path))
-                    :extend-with (fn -extend-with [ctx var-name]
-                                   (process (read-resource (zoom ctx var-name))
-                                            ctx))
-                    :extend-from (fn -extend-from [ctx path]
-                                   (process (read-resource path)
-                                            ctx))
-                    :component (fn -component [ctx path ctx-path]
-                                 (process (read-resource path)
-                                          (zoom ctx ctx-path)))
-                    :map (fn -map [ctx tag -fn & args]
-                           (let [fn-args (vec (butlast args))
-                                 coll (last args)]
-                             (into [tag]
-                                 (map (fn [item]
-                                        (apply -fn ctx (conj fn-args item))))
-                                 coll)))
-                    :include (fn -include [_ path]
-                               (hu/raw-string (slurp path)))})
+  #:carbon{:default (fn -default [ctx var-path templ]
+                      (let [arg (zoom ctx var-path)]
+                        (process-argument ctx
+                                          (if (some? arg)
+                                            arg
+                                            templ))))
+           :get (fn -get [ctx var-path]
+                  (zoom ctx var-path))
+           :extend-with (fn -extend-with [ctx var-name]
+                          (process (read-resource (zoom ctx var-name))
+                                   ctx))
+           :extend-from (fn -extend-from [ctx path]
+                          (process (read-resource path)
+                                   ctx))
+           :component (fn -component [ctx path ctx-path]
+                        (process (read-resource path)
+                                 (zoom ctx ctx-path)))
+           :chose (fn [ctx -key options]
+                    (->> -key
+                        (get ctx)
+                        (get options)))
+           :map (fn -map [ctx tag -fn & args]
+                  (let [fn-args (vec (butlast args))
+                        coll (last args)]
+                    (into [tag]
+                          (map (fn [item]
+                                 (apply -fn ctx (conj fn-args item))))
+                          coll)))
+           :include (fn -include [_ path]
+                      (hu/raw-string (slurp path)))})
 
 
 (defn process-argument [ctx arg]
   (cond
-    (namespaced-as "carbon.template" arg) (render-template arg)
+    (namespaced-as "carbon" arg) (render-template arg)
     (and (vector? arg)
          (fn? (first arg))) (run-fn arg ctx)
+    (and (vector? arg)
+         (= 1 (count arg))
+         (list? (first arg))) (first arg)
     (vector? arg) (mapv (partial process-argument ctx) arg)
     :else arg))
 
