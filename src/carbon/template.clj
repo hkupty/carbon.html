@@ -9,9 +9,6 @@
 (defn read-resource [resource]
   (edn/read-string (slurp (io/reader (io/resource resource)))))
 
-(def template-functions
-  #:carbon.fn{:str str})
-
 (defn namespaced-as [-ns kw]
   (and (keyword? kw)
          (= -ns (namespace kw))))
@@ -60,7 +57,6 @@
 (defn process-argument [ctx arg]
   (cond
     (namespaced-as "carbon.template" arg) (render-template arg)
-    (namespaced-as "carbon.fn" arg) (template-functions arg)
     (and (vector? arg)
          (fn? (first arg))) (run-fn arg ctx)
     (vector? arg) (mapv (partial process-argument ctx) arg)
