@@ -1,0 +1,19 @@
+{:template
+ {:head [[:title [:c/get [:title]]]]
+  :body
+  [[:section
+    [:p "here goes something static"]]
+   [:c/if [< [:c/get [:value]] 1]
+    [:section
+     [:p [:c/get [:message]]]]
+    [:section
+     [:p "No candy for you"]]]
+   [:section
+    [:ul
+     [:c/for
+      [x [:c/get [:lines]]]
+      [:li x]]]]]}
+ :content {:message "Here goes something dynamic"
+           :value 0.4
+           :lines ["First line"
+                   "second line"]}}

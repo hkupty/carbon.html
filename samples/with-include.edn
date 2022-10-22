@@ -1,0 +1,7 @@
+{:template
+ {:head [[:title [:c/get [:title]]]]
+  :body
+  [[:section
+    [:c/component "sample/content-template.edn"]
+    ]]}
+ :content {:message "Here goes something dynamic"}}

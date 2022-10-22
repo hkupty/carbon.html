@@ -1,0 +1,3 @@
+{:template {:head [[:title [:c/get [:message]]]]
+            :body [:div [:p [:c/get [:message]]]]}
+ :content {:message "Hello world!"}}

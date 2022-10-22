@@ -45,16 +45,12 @@
 
 (defmethod carbon-bind :c/for [_ binds & exprs]
   (let [sym-map (apply hash-map binds)]
-    {:data (tap (persistent!
+    {:data (persistent!
              (transduce
                (mapcat (fn [i] (map (replacer (util/map-vals #(nth % i) sym-map)) exprs)))
                conj!
                (transient [])
-               (range (apply min (map count (vals sym-map)))))))}))
-
-(defmethod carbon-bind :c/when -when [_ condition branch]
-  {:data (when (true? condition)
-           branch)})
+               (range (apply min (map count (vals sym-map))))))}))
 
 (defmulti carbon-cond (fn [tag & _] tag))
 (defmethod carbon-cond :default [_ ctx & args] (vec args))
@@ -64,4 +60,8 @@
     true-branch
     false-branch)})
 
+
+(defmethod carbon-cond :c/when -when [_ condition branch]
+  {:data (when (true? (tap condition))
+           branch)})
 

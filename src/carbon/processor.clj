@@ -50,18 +50,14 @@
 
                                 data))
 
-    (conds (first element)) (do
-                              (label ::cond (first element))
-                              (reset! debug? true)
-                              (let [{:keys [data ctx]}
-                                    (apply syntax/carbon-cond (update element 1 (comp process vector)))]
-                              (reset! debug? false)
+    (conds (first element)) (let [{:keys [data ctx]}
+                                    (apply syntax/carbon-cond (update element 1 (comp first process vector)))]
 
                                 (when (some? ctx)
                                   (push-thread-bindings {#'tags/*ctx* ctx})
                                   (set! replaced-ctx? true))
 
-                                data))
+                                data)
 
     (special-keys (first element)) (let [{:keys [data ctx]}
                                          (apply syntax/carbon-syntax element)]
@@ -132,22 +128,3 @@
      (p/html5 {:mode :html}
               (process [:head head])
               (process [:body body])))))
-
-(comment
-
-  (binding [tags/*ctx* {:parts '({:path "http://xx.yy" :name "xx.yy"}
-                                 {:path "http://yy.zz" :name "yy.zz"})}]
-    (process [[:c/for ['part [:c/get [:parts]]]
-     [:li [:a {:href [:c/zoom 'part [:path]]} [:c/zoom 'part [:name]]]]]]))
-
-
-  (binding [tags/*ctx* {:names {:long "Stuff" :short "S"}}]
-    (process [[:c/let ['x [:c/get [:names]]] [:span 'x]]]))
-
-
-
-
-
-
-
-  )

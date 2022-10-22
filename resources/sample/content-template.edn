@@ -1,2 +1,2 @@
 [:div
- [:p [:carbon.template/get :data]]]
+ [:p.my-amazing-css.class [:c/get :message]]]

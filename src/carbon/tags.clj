@@ -2,7 +2,6 @@
   (:require [clojure.string :as str]
             [hiccup.util :as hu]))
 
-
 (def ^:dynamic *ctx* {})
 
 (defn stack-ctx [new-ctx]
