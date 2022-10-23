@@ -1,5 +1,6 @@
 (ns carbon.processor
   (:require [carbon.tags :as tags]
+            [carbon.debug :as debug]
             [carbon.syntax :as syntax]
             [hiccup.page :as p]))
 
@@ -15,76 +16,47 @@
 (defn tags [i]
   (some? ((into #{} (keys (methods tags/carbon-tag))) i)))
 
-(def ^:dynamic replaced-ctx? nil)
-
-(def debug? (atom false))
-
-(defn tap [x] (println x) x)
-(defn label [& args] (when @debug?
-                       (apply println args))
-  (last args))
-
 (declare process)
 
 (defn preprocess [element]
-  (cond
-    (not (vector? element)) (cond-> element
-                              (symbol? element) (->
-                                                  (resolve)
-                                                  (or element))
-                              (tags element) (->
-                                               (->> (label ::tag)
-                                                    (get-method tags/carbon-tag))
-                                               (with-meta {:carbon? true :fn element})))
+  (if (not (vector? element))
+    (cond-> element
+      (symbol? element) (-> (resolve) (or element))
+      (tags element) (->
+                       (->> (debug/label ::tag) (get-method tags/carbon-tag))
+                       (with-meta {:carbon? true :fn element})))
+    (let [-key (first element)]
 
-    (binds (first element)) (do
-                              (label ::bind (first element))
-                              (reset! debug? true)
+      (cond
+        (binds -key) (debug/with-debug ::bind -key
+
+                       (let [{:keys [data ctx]}
+                             (debug/label ::bind-processed
+                                          (apply syntax/carbon-bind element))]
+                         data))
+
+        (conds -key) (debug/with-debug ::cond -key
+                       (let [{:keys [data ctx]}
+                             (debug/label
+                               ::cond-processed
+                               (apply syntax/carbon-cond (update element 1 (comp first process vector))))]
+                         data))
+
+        (special-keys -key) (debug/with-debug ::syntax -key
                               (let [{:keys [data ctx]}
-                                    (apply syntax/carbon-bind (update element 1 process))]
-                              (reset! debug? false)
-
-                                (when (some? ctx)
-                                  (push-thread-bindings {#'tags/*ctx* ctx})
-                                  (set! replaced-ctx? true))
-
+                                    (debug/label ::syntax-processed
+                                                 (apply syntax/carbon-syntax element))]
                                 data))
-
-    (conds (first element)) (let [{:keys [data ctx]}
-                                    (apply syntax/carbon-cond (update element 1 (comp first process vector)))]
-
-                                (when (some? ctx)
-                                  (push-thread-bindings {#'tags/*ctx* ctx})
-                                  (set! replaced-ctx? true))
-
-                                data)
-
-    (special-keys (first element)) (let [{:keys [data ctx]}
-                                         (apply syntax/carbon-syntax element)]
-
-                                     (when (some? ctx)
-                                       (push-thread-bindings {#'tags/*ctx* ctx})
-                                       (set! replaced-ctx? true))
-
-                                     data)
-    :else element))
+        :else element))))
 
 (defn postprocess [element]
   (cond
     (and (vector? element)
          (or (fn? (first element))
              (var? (first element)))) (do
-                                        (label ::run element)
-                                        (label ::return (tags/run-fn element)))
-    :else (label ::postprocess-nop element)))
-
-(defn cleanup [element]
-  (when replaced-ctx?
-    (when (-> tags/*ctx* :inspect?)
-      (pr-str element))
-    (set! replaced-ctx? nil)
-    (pop-thread-bindings))
-  element)
+                                        (debug/label ::run element)
+                                        (debug/label ::return (tags/run-fn element)))
+    :else (debug/label ::postprocess-nop element)))
 
 (def linearize
   (fn [xf]
@@ -101,30 +73,30 @@
          :else result)))))
 
 (defn process [tree]
-  (label ::process tree)
   (let [is-vec? (vector? tree)
         is-map? (map? tree)
         xf (comp (map preprocess)
                  (map process)
                  (map postprocess)
-                 (map cleanup)
                  linearize
                  (map (fn [x]
-                        (label ::end-of-process tree x))))]
-    (binding [replaced-ctx? nil] ;; Needed for set! to work
-      (cond->> tree
+                        (debug/label ::end-of-process tree x))))]
+    (debug/label ::process tree {:is-vec? is-vec? :is-map? is-map?})
+    (cond->> tree
         is-map? (into {} xf)
+        is-vec? (preprocess)
         is-vec? (transduce
                   xf
                   conj!
                   (transient []))
-        is-vec? persistent!))))
+        is-vec? persistent!)))
 
 
 (defn render-page
   ([content tags] (render-page content (first tags) (second tags)))
   ([content head body]
    (binding [tags/*ctx* content]
+     (debug/open-debug-gate!)
      (p/html5 {:mode :html}
               (process [:head head])
               (process [:body body])))))
