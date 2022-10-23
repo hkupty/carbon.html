@@ -2,6 +2,10 @@
  {:head [[:title [:c/get [:title]]]]
   :body
   [[:section
-    [:c/component "sample/content-template.edn"]
-    ]]}
- :content {:message "Here goes something dynamic"}}
+    [:ul
+     [:c/for [item [:items]]
+      [:li item]]]
+    [:c/component [message [:message]] :content-template]
+    [:c/component [message [:missing]] :content-template]]]}
+ :content {:message "Here goes something dynamic"
+           :items ["one" "two"]}}

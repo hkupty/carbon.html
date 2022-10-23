@@ -1,0 +1,2 @@
+[:c/declare [message "Show this if message is missing"]
+ [:div [:p.my-amazing-css.class message]]]

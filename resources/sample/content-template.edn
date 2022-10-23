@@ -1,2 +1,0 @@
-[:div
- [:p.my-amazing-css.class [:c/get :message]]]
