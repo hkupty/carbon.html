@@ -41,7 +41,7 @@
                         (map vec)
                         (filter (comp symbol? first)))
                       (partition 2 binds))]
-    {:data (cond->> exprs (seq sym-map) (bind-impl sym-map))}))
+    (cond->> exprs (seq sym-map) (bind-impl sym-map))))
 
 (defn cartesian-product [sym-map]
   (let [-ks (keys sym-map)
@@ -52,12 +52,11 @@
 
 (defmethod carbon-bind :c/for [_ binds & exprs]
   (let [syms (cartesian-product (normalize-bindings binds))]
-    {:data (persistent!
-      (transduce
+    (transduce
         (mapcat (fn [sym-map] (bind-impl sym-map exprs)))
-        conj!
-        (transient [])
-        syms))}))
+        conj
+        []
+        syms)))
 
 ;; Declares variables to be used inside the `exprs` block
 ;; The values in the binding block are expected to be a path to getting
@@ -65,24 +64,24 @@
 ;; i.e. [:c/let [message [:user :message]] [:div [:p message]]]
 ;; The values can have defaults applied in case context doesn't find a value
 ;; i.e. [:c/let [message ^{:default "some default value"} [:missing-key]] [:div [:p message]]]
-(defmethod carbon-bind :c/let[_ binds & exprs] {:data (bind-impl (normalize-bindings binds) exprs)})
+(defmethod carbon-bind :c/let[_ binds & exprs] (bind-impl (normalize-bindings binds) exprs))
 
 ;; Applies a component into this section, replacing the content of the variables
 ;; declared in it with the ones supplied as `binds` in this block.
 ;; see :c/declare for default values
 (defmethod carbon-bind :c/component [_ binds component]
-  {:data (bind-impl (normalize-bindings binds)
-                    (read-resource (cond-> component (keyword? component) (-> (name) (str ".edn")))))})
+  (bind-impl (normalize-bindings binds)
+                    (read-resource (cond-> component (keyword? component) (-> (name) (str ".edn"))))))
 
 (defmulti carbon-cond (fn [tag & _] tag))
 (defmethod carbon-cond :default [_ ctx & args] (vec args))
 
 (defmethod carbon-cond :c/if -if [_ condition true-branch false-branch]
-  {:data (if (true? condition)
+  (if (true? condition)
     true-branch
-    false-branch)})
+    false-branch))
 
 (defmethod carbon-cond :c/when -when [_ condition branch]
-  {:data (when (true? condition)
-           branch)})
+  (when (true? condition)
+           branch))
 

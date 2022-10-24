@@ -4,14 +4,27 @@
             [carbon.syntax :as syntax]
             [hiccup.page :as p]))
 
-(defn binds [i]
-  (some? ((into #{} (keys (methods syntax/carbon-bind))) i)))
+(def binds (into #{} (keys (methods syntax/carbon-bind))))
 
-(defn conds [i]
-  (some? ((into #{} (keys (methods syntax/carbon-cond))) i)))
+(def conds (into #{} (keys (methods syntax/carbon-cond))))
 
-(defn tags [i]
-  (some? ((into #{} (keys (methods tags/carbon-tag))) i)))
+(def tags (into #{} (keys (methods tags/carbon-tag))))
+
+(def exported-fns
+  {'odd? odd?
+   'even? even?
+   'true? true?
+   'false? false?
+   '= =
+   '> >
+   '< <
+   '>= >=
+   '<= <=
+   'str str
+   '* *
+   '+ +
+   '- -
+   '/ /})
 
 (declare process)
 
@@ -29,23 +42,19 @@
 (defn preprocess [element]
   (if (not (vector? element))
     (cond-> element
-      (symbol? element) (-> (resolve) (or element))
+      (symbol? element) (-> (exported-fns) (or element))
       (tags element) (->
-                       (->> (debug/label ::tag) (get-method tags/carbon-tag))
+                       (->> (get-method tags/carbon-tag))
                        (with-meta {:carbon? true :fn element})))
-    (let [-key (first element)]
+    (let [[-key bind & forms] element]
 
       (cond
-        (binds -key) (debug/with-debug ::bind element
-                       (let [{:keys [data]}
-                             (apply syntax/carbon-bind element)]
-                         data))
+        (binds -key) (apply syntax/carbon-bind -key bind forms)
 
-        (conds -key) (debug/with-debug ::cond element
-                       (let [{:keys [data]}
-                             (apply syntax/carbon-cond
-                                    (update element 1 (comp first process vector)))]
-                         data))
+        (conds -key) (apply syntax/carbon-cond
+                                    -key
+                                    (first (process (vector bind)))
+                                    forms)
 
         :else element))))
 
@@ -57,30 +66,31 @@
     :else element))
 
 
+(declare process-xf)
+
 (defn process [tree]
-  (debug/with-debug ::tree tree
-    (let [is-vec? (vector? tree)
-        xf (comp (map (partial debug/label ::node :start :tree tree))
-                 (map preprocess)
-                 (map process)
-                 (map postprocess)
-                 linearize
-                 (map (partial debug/label ::node-finish tree))
-                 )]
+  (let [is-vec? (vector? tree)]
     (cond->> tree
-        is-vec? (preprocess)
-        is-vec? (into [] linearize)
+        is-vec? (preprocess) ;; preprocess tree
         is-vec? (transduce
-                  xf
-                  conj!
-                  (transient []))
-        is-vec? persistent!))))
+                  process-xf
+                  conj
+                  []))))
+
+(def process-xf
+  (comp (map preprocess)
+        (map process)
+        (map postprocess)
+        linearize))
+
+(defn render [tree context]
+  (binding [tags/*ctx* context]
+    (process tree)))
 
 (defn render-page
   ([content tags] (render-page content (first tags) (second tags)))
   ([content head body]
    (binding [tags/*ctx* content]
-     (debug/open-debug-gate!)
      (p/html5 {:mode :html}
               (process [:head head])
               (process [:body body])))))
