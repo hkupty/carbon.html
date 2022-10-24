@@ -10,13 +10,21 @@
 (defn conds [i]
   (some? ((into #{} (keys (methods syntax/carbon-cond))) i)))
 
-(defn special-keys [i]
-  (some? ((into #{} (keys (methods syntax/carbon-syntax))) i)))
-
 (defn tags [i]
   (some? ((into #{} (keys (methods tags/carbon-tag))) i)))
 
 (declare process)
+
+(def linearize
+  (fn [xf]
+    (fn
+      ([] (xf))
+      ([result] (xf result))
+      ([result item]
+       (cond
+         (and (vector? item) (seq item) (every? vector? item)) (reduce xf result item)
+         (some? item) (xf result item)
+         :else result)))))
 
 (defn preprocess [element]
   (if (not (vector? element))
@@ -28,69 +36,45 @@
     (let [-key (first element)]
 
       (cond
-        (binds -key) (debug/with-debug ::bind -key
-
-                       (let [{:keys [data ctx]}
-                             (debug/label ::bind-processed
-                                          (apply syntax/carbon-bind element))]
+        (binds -key) (debug/with-debug ::bind element
+                       (let [{:keys [data]}
+                             (apply syntax/carbon-bind element)]
                          data))
 
-        (conds -key) (debug/with-debug ::cond -key
-                       (let [{:keys [data ctx]}
-                             (debug/label
-                               ::cond-processed
-                               (apply syntax/carbon-cond (update element 1 (comp first process vector))))]
+        (conds -key) (debug/with-debug ::cond element
+                       (let [{:keys [data]}
+                             (apply syntax/carbon-cond
+                                    (update element 1 (comp first process vector)))]
                          data))
 
-        (special-keys -key) (debug/with-debug ::syntax -key
-                              (let [{:keys [data ctx]}
-                                    (debug/label ::syntax-processed
-                                                 (apply syntax/carbon-syntax element))]
-                                data))
         :else element))))
 
 (defn postprocess [element]
   (cond
     (and (vector? element)
          (or (fn? (first element))
-             (var? (first element)))) (do
-                                        (debug/label ::run element)
-                                        (debug/label ::return (tags/run-fn element)))
-    :else (debug/label ::postprocess-nop element)))
+             (var? (first element)))) (tags/run-fn element)
+    :else element))
 
-(def linearize
-  (fn [xf]
-    (fn
-      ([] (xf))
-      ([result] (xf result))
-      ([result item]
-       (cond
-         (and (vector? item)
-             (seq item)
-             (every? vector? item))
-         (reduce xf result item)
-         (some? item) (xf result item)
-         :else result)))))
 
 (defn process [tree]
-  (let [is-vec? (vector? tree)
-        is-map? (map? tree)
-        xf (comp (map preprocess)
+  (debug/with-debug ::tree tree
+    (let [is-vec? (vector? tree)
+        xf (comp (map (partial debug/label ::node :start :tree tree))
+                 (map preprocess)
                  (map process)
                  (map postprocess)
                  linearize
-                 (map (fn [x]
-                        (debug/label ::end-of-process tree x))))]
-    (debug/label ::process tree {:is-vec? is-vec? :is-map? is-map?})
+                 (map (partial debug/label ::node-finish tree))
+                 )]
     (cond->> tree
-        is-map? (into {} xf)
         is-vec? (preprocess)
+        is-vec? (into [] linearize)
         is-vec? (transduce
                   xf
                   conj!
                   (transient []))
-        is-vec? persistent!)))
-
+        is-vec? persistent!))))
 
 (defn render-page
   ([content tags] (render-page content (first tags) (second tags)))

@@ -21,7 +21,8 @@
 (defmacro with-debug [debug-label debug-key & form]
   `(do
      (push-debug-context! ~debug-label)
-     (label ~debug-label ~debug-key)
+     (label ~debug-label :start ~debug-key)
      (let [result# (do ~@form)]
+       (label ~debug-label :finish ~debug-key :-> result#)
        (pop-debug-context!)
        result#)))
