@@ -9,11 +9,6 @@
 
 (defn read-resource [resource] (edn/read-string (slurp (io/reader (io/resource resource)))))
 
-;; Syntax: Either updates the context or requires pre-processing
-;; so it can change underlying structure (i.e. like a macro)
-(defmulti carbon-syntax (fn [tag & _] tag))
-
-
 (defn replacer [sym-map]
   (fn -step [expr]
     (postwalk
@@ -63,7 +58,6 @@
         conj!
         (transient [])
         syms))}))
-
 
 ;; Declares variables to be used inside the `exprs` block
 ;; The values in the binding block are expected to be a path to getting
