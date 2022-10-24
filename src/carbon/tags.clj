@@ -31,7 +31,7 @@
 (defmethod carbon-tag :c/get -get [_ var-path & opt]
   (apply zoom *ctx* var-path opt))
 
-#_(defmethod carbon-tag :c/zoom -zoom [_ -map -path & opt] (apply zoom -map -path opt))
+(defmethod carbon-tag :c/zoom -zoom [_ -map -path & opt] (apply zoom -map -path opt))
 
 #_(defmethod carbon-tag :c/link -link [_ -map var-path & opt]
   (apply zoom *ctx* (zoom -map var-path) opt))
