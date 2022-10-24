@@ -45,11 +45,36 @@
                            [:div -k]
                            [:div [str "extra-" -k]]]]
                          {:key "xxx"})))
-    (testing 'defaults
+    (testing "^{:default xxx}"
       (is (match? [:div [:p "default text"]]
                   (process '[:div [:c/let [text ^{:default "default text"} [:missing-key]]
                                    [:p text]]]
-                           {}))))
-    ))
+                           {})))))
+
+  (testing :c/if
+    (is (match? [:div [:p "true branch"]]
+                  (process '[:div [:c/if [true? [:c/get :is-it-true]]
+                                   [:p "true branch"]
+                                   [:p "false branch"]]]
+                           {:is-it-true true})))
+
+   (is (match? [:div [:p "false branch"]]
+                  (process '[:div [:c/if [true? [:c/get :is-it-true]]
+                                   [:p "true branch"]
+                                   [:p "false branch"]]]
+                           {:is-it-true false}))))
+
+ (testing :c/when
+    (is (match? [:div [:p "true branch"]]
+                  (process '[:div [:c/when [true? [:c/get :is-it-true]]
+                                   [:p "true branch"]]]
+                           {:is-it-true true})))
+
+   (is (match? [:div]
+                  (process '[:div [:c/when [true? [:c/get :is-it-true]]
+                                   [:p "true branch"]]]
+                           {:is-it-true false})))))
+
+
 
 
