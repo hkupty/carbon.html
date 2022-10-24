@@ -13,6 +13,17 @@
 (defn tags [i]
   (some? ((into #{} (keys (methods tags/carbon-tag))) i)))
 
+(def exported-fns
+  {'odd? odd?
+   'even? even?
+   'true? true?
+   'false? false?
+   '= =
+   '> >
+   '< <
+   '>= >=
+   '<= <=})
+
 (declare process)
 
 (def linearize
@@ -29,7 +40,7 @@
 (defn preprocess [element]
   (if (not (vector? element))
     (cond-> element
-      (symbol? element) (-> (resolve) (or element))
+      (symbol? element) (-> (exported-fns) (or element))
       (tags element) (->
                        (->> (debug/label ::tag) (get-method tags/carbon-tag))
                        (with-meta {:carbon? true :fn element})))
