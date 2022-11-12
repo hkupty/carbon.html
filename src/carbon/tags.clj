@@ -1,6 +1,5 @@
 (ns carbon.tags
-  (:require [clojure.string :as str]
-            [hiccup.util :as hu]))
+  (:require [clojure.string :as str]))
 
 (def ^:dynamic *ctx* {})
 
@@ -42,6 +41,14 @@
         (map (fn [elem] (run-fn [-fn elem])))
         coll))
 
-(defmethod carbon-tag :c/include [_ path] (hu/raw-string (slurp path)))
+(defmethod carbon-tag :c/merge -merge [_ & coll]
+  (apply merge coll))
+
+
+(defmethod carbon-tag :c/kv -kv [_ -key]
+  {(cond-> -key
+    (vector? -key) (last))
+   (zoom *ctx* -key)})
+
 #_(defmethod carbon-tag :c/str [_ _ & args] (pr-str args))
 

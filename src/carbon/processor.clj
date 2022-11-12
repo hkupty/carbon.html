@@ -2,7 +2,8 @@
   (:require [carbon.tags :as tags]
             [carbon.debug :as debug]
             [carbon.syntax :as syntax]
-            [hiccup.page :as p]))
+            [hiccup.page :refer [doctype]]
+            [hiccup.core :refer [html]]))
 
 (def binds (into #{} (keys (methods syntax/carbon-bind))))
 
@@ -69,14 +70,15 @@
 (declare process-xf)
 
 (defn process [tree]
-  (let [is-vec? (vector? tree)]
+  (let [is-vec? (vector? tree)
+        is-map? (map? tree)]
     (cond->> tree
         is-vec? (preprocess) ;; preprocess tree
-        is-vec? (transduce
+        (or is-vec?
+            is-map?) (transduce
                   process-xf
                   conj
-                  []))))
-
+                  (or (empty tree) [])))))
 (def process-xf
   (comp (map preprocess)
         (map process)
@@ -87,10 +89,7 @@
   (binding [tags/*ctx* context]
     (process tree)))
 
-(defn render-page
-  ([content tags] (render-page content (first tags) (second tags)))
-  ([content head body]
-   (binding [tags/*ctx* content]
-     (p/html5 {:mode :html}
-              (process [:head head])
-              (process [:body body])))))
+(defn render-page [data content]
+  (html {:mode :html}
+        (doctype :html5)
+        (render content data)))

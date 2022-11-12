@@ -1,11 +1,15 @@
 (ns carbon.html-test
   (:require [clojure.test :refer [deftest testing is]]
             [carbon.processor :as p]
+            [clojure.java.io :as io]
             [matcher-combinators.test] ;; adds support for `match?` and `thrown-match?` in `is` expressions
             [matcher-combinators.matchers :as m]
+            [clojure.string :as str]
+            [clojure.edn :as edn]
             [carbon.debug :as d]
             [carbon.tags :as tags]
-            [carbon.syntax :as syntax]))
+            [carbon.syntax :as syntax])
+  (:import (java.io File)))
 
 (deftest carbon-syntax
   (testing :c/for
@@ -69,8 +73,47 @@
     (is (match? [:div]
                 (p/render '[:div [:c/when [true? [:c/get :is-it-true]]
                                   [:p "true branch"]]]
-                          {:is-it-true false})))))
+                          {:is-it-true false}))))
+ (testing :c/declare
+   (let [temp (File/createTempFile "template" ".edn")
+         fname (keyword (first (str/split (.getName temp) #"\.")))]
+     (spit (io/output-stream temp) (pr-str '[:c/declare [base "value"] [:p base]]))
+     (syntax/add-to-search-folders! (.getParentFile temp))
 
+     (is (match? [:div [:p "Amazing"]]
+                 (p/render [:div [:c/component '[base [:base]] fname]]
+                           {:base "Amazing"})))
 
+     (.delete temp)))
 
+ (testing "attribute metadata"
+    (testing "empty metadata"
+      (is (match? [:p {} "text"] (p/render '[:p {} "text"] {}))))
 
+  (testing "static metadata"
+      (is (match? [:p {:x 1} "text"] (p/render '[:p {:x 1} "text"] {}))))
+
+  (testing "dynamic metadata"
+    (is (match? [:p {:x "true"} "text"]
+                (p/render '[:p
+                            {:x [:c/if [:c/get :data] "true" "false"]}
+                            "text"]
+                          {:data true})))
+    (is (match? [:p {:x "something"} "text"]
+                (p/render '[:p [:c/when [:c/get :data]
+                                {:x "something"}]
+                            "text"]
+                          {:data true})))
+
+    (is (match? [:p {:x "something"} "text"]
+                (p/render '[:p [:c/when [:c/get :data]
+                                [:c/merge {:x "discard"} {:x "something"}]]
+                            "text"]
+                          {:data true})))
+
+    (is (match? [:p {:x "something"} "text"]
+                (p/render '[:p [:c/when [:c/get :data]
+                                [:c/kv [:nested :x]]]
+                            "text"]
+                          {:data true
+                           :nested {:x "something"}}))))))
