@@ -5,9 +5,25 @@
             [clojure.java.io :as io]
             [clojure.math.combinatorics :as combo]
             [clojure.walk :refer [postwalk]]
-            [carbon.util :as util]))
+            [carbon.util :as util])
+  (:import (java.io File PushbackReader)))
 
-(defn read-resource [resource] (edn/read-string (slurp (io/reader (io/resource resource)))))
+(def ^:private search-folders (atom []))
+
+;; there might be dragons in using concat here
+(defn add-to-search-folders! [& lst] (swap! search-folders concat lst))
+
+(defn find-template [template-name]
+  (first
+    (eduction
+      (map (fn [obj] (cond-> obj string? (io/file))))
+      (mapcat file-seq)
+      (filter (fn [^File file] (.isFile file)))
+      (filter (fn [^File file]
+                (= (.getName file) template-name)))
+      @search-folders)))
+
+(defn read-resource [resource] (edn/read (PushbackReader. (io/reader (find-template resource)))))
 
 (defn replacer [sym-map]
   (fn -step [expr]
@@ -20,7 +36,8 @@
 
 (defn normalize-bindings [binds]
   (into {}
-        (map (fn [[-key -path]] [-key (tags/zoom tags/*ctx* -path (:default (meta -path) -key))]))
+        (map (fn [[-key -path]] [-key (or (tags/zoom tags/*ctx* -path (:default (meta -path) -key))
+                                          -path)]))
         (apply hash-map binds)))
 
 (defn bind-impl [sym-map exprs] (into [] (map (replacer sym-map)) exprs))
@@ -43,7 +60,7 @@
                       (partition 2 binds))]
     (cond->> exprs (seq sym-map) (bind-impl sym-map))))
 
-(defn cartesian-product [sym-map]
+(defn- cartesian-product [sym-map]
   (let [-ks (keys sym-map)
         -vs (map (fn [-k] (get sym-map -k)) -ks)]
     (into []
