@@ -29,7 +29,13 @@
                                          m [:mult]]
                                  [:p [* base m]]]]
                          {:items [1 2]
-                          :mult [10]}))))
+                          :mult [10]})))
+    (testing "getting nested data"
+      (is (match? [:div [:p "one"] [:p "two"]]
+                  (p/render '[:div
+                              [:c/for [data [:items :options]]
+                               [:p data]]]
+                            {:items {:options ["one" "two"]}})))))
 
   (testing :c/let
     ;; TODO Investigate if it can be unwrapped
@@ -116,4 +122,18 @@
                                 [:c/kv [:nested :x]]]
                             "text"]
                           {:data true
-                           :nested {:x "something"}}))))))
+                           :nested {:x "something"}})))))
+ (testing :c/get
+   (testing "simple get"
+     (is (match? [:p "text"] (p/render '[:p [:c/get :text]] {:text "text"})))))
+
+ (testing :c/zoom
+  (testing "inside for"
+     (is (match? [:div
+                  [:p "one"]
+                  [:p "two"]]
+                 (p/render '[:div
+                             [:c/for [block [:data]]
+                              [:p [:c/zoom block :text]]]]
+                           {:data [{:text "one"} {:text "two"}]})))) ))
+
