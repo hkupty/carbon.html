@@ -139,5 +139,8 @@
 
   (testing :c/slug
     (is (match? [:p {:id "the_id"} "xx"] (p/render '[:p {:id [:c/slug :id]} "xx"] {:id "the id"}))))
+
+  (testing "tested"
+    (is (match? [:div [:p {:id "the_id"} "xx"]] (p/render '[:div [:c/let [obj [:obj]]  [:p {:id [:c/slug obj :id]} "xx"]]] {:obj {:id "the id"}}))))
   )
 

@@ -14,6 +14,7 @@
                        (keyword? -val)))
 
 (defn zoom
+  ([-path] (zoom *ctx* -path nil))
   ([-map -path] (zoom -map -path nil))
   ([-map -path -default]
   ((if (coll? -path) get-in get) -map -path -default)))
@@ -52,9 +53,9 @@
 (defmethod carbon-tag :c/merge -merge [_ & coll]
   (apply merge coll))
 
-(defmethod carbon-tag :c/slug -slug [_ val-or-path]
+(defmethod carbon-tag :c/slug -slug [_ & val-or-path]
   (cond->> val-or-path
-    (path? val-or-path) (zoom *ctx*)
+    (not (string? (first val-or-path))) (apply zoom)
     true (slug)))
 
 (defmethod carbon-tag :c/kv -kv [_ -key]
