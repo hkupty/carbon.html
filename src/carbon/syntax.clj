@@ -38,10 +38,15 @@
           i))
       expr)))
 
+(defn value-bind [-key -path]
+  (cond
+    (vector? -path) (tags/zoom tags/*ctx* -path (:default (meta -path) -key))
+    (keyword? -path) (tags/zoom tags/*ctx* -path (:default (meta -path) -key))
+    :else -path))
+
 (defn normalize-bindings [binds]
   (into {}
-        (map (fn [[-key -path]] [-key (or (tags/zoom tags/*ctx* -path (:default (meta -path) -key))
-                                          -path)]))
+        (map (fn [[-key -path]] [-key (value-bind -key -path)]))
         (apply hash-map binds)))
 
 (defn bind-impl [sym-map exprs] (into [] (map (replacer sym-map)) exprs))
