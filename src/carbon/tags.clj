@@ -22,7 +22,8 @@
 (defn slug [-str]
   (-> -str
       (str/trim)
-      (str/replace #" " "_")))
+      (str/replace #" " "_")
+      (str/lower-case)))
 
 (defmulti carbon-tag (fn [tag & args] tag))
 (defmethod carbon-tag :default -default [tag & args] (into [tag] args))
