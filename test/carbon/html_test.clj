@@ -90,6 +90,16 @@
                   (p/render [:div [:c/component '[base [:base]] fname]]
                             {:base "Amazing"})))
 
+      (testing "nested path"
+        (is (match? [:div [:p "Amazing"]]
+                    (p/render [:div [:c/component '[base [:obj :base]] fname]]
+                              {:obj {:base "Amazing"}}))))
+      (testing "nested path from from object"
+        (is (match? [:div [:p "Amazing"]]
+                    (p/render [:div [:c/let '[obj :obj]
+                                     [:c/component '[base [obj :base]] fname]]]
+                              {:obj {:base "Amazing"}}))))
+
       (.delete temp)))
 
   (testing "attribute metadata"
@@ -144,6 +154,5 @@
       (is (match? [:div [:p {:id "the_id"} "xx"]] (p/render '[:div [:c/let [obj [:obj]]  [:p {:id [:c/slug obj :id]} "xx"]]] {:obj {:id "the id"}})))))
 
   (testing :c/id
-    (is (match? [:p {:id "the_id"} [:a {:href "#the_id"} "xx"]] (p/render '[:p {:id [:c/slug :id]} [:a {:href [:c/id :id]} "xx"]] {:id "the id"}))))
-  )
+    (is (match? [:p {:id "the_id"} [:a {:href "#the_id"} "xx"]] (p/render '[:p {:id [:c/slug :id]} [:a {:href [:c/id :id]} "xx"]] {:id "the id"})))))
 
