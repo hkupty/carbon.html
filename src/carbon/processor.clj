@@ -16,6 +16,7 @@
    'even? even?
    'true? true?
    'false? false?
+   'some? some?
    '= =
    '> >
    '< <
