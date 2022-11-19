@@ -23,7 +23,11 @@
                 (= (.getName file) template-name)))
       @search-folders)))
 
-(defn read-resource [resource] (edn/read (PushbackReader. (io/reader (find-template resource)))))
+(defn read-resource [resource]
+  (try
+    (edn/read (PushbackReader. (io/reader (find-template resource))))
+    (catch Exception ex
+      (throw (ex-info "Resource not found" {:resource resource} ex)))))
 
 (defn replacer [sym-map]
   (fn -step [expr]
