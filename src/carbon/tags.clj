@@ -55,11 +55,13 @@
   (apply merge coll))
 
 (defmethod carbon-tag :c/slug -slug [_ & val-or-path]
+  (println val-or-path)
   (slug (if (not (string? (first val-or-path)))
           (apply zoom val-or-path)
       (first val-or-path))))
 
 (defmethod carbon-tag :c/id -id [_ & val-or-path]
+  (println val-or-path)
   (str "#" (slug (if (not (string? (first val-or-path)))
           (apply zoom val-or-path)
       (first val-or-path)))))
