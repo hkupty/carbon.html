@@ -70,11 +70,15 @@
     (cond->> exprs (seq sym-map) (bind-impl sym-map))))
 
 (defn- cartesian-product [sym-map]
-  (let [-ks (keys sym-map)
+  (try (let [-ks (keys sym-map)
         -vs (map (fn [-k] (get sym-map -k)) -ks)]
     (into []
           (map (fn [-cp] (into {} (map vector -ks -cp))))
-          (apply combo/cartesian-product -vs))))
+          (apply combo/cartesian-product -vs)))
+       (catch Exception ex
+         (throw (ex-info "Cannot build bindings"
+                        {:symbols sym-map}
+                        ex)))))
 
 (defmethod carbon-bind :c/for [_ binds & exprs]
   (let [syms (cartesian-product (normalize-bindings binds))]
