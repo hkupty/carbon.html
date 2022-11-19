@@ -59,6 +59,12 @@
     (not (string? (first val-or-path))) (apply zoom)
     true (slug)))
 
+(defmethod carbon-tag :c/id -id [_ & val-or-path]
+  (cond->> val-or-path
+    (not (string? (first val-or-path))) (apply zoom)
+    true (slug)
+    true (str "#")))
+
 (defmethod carbon-tag :c/kv -kv [_ -key]
   {(cond-> -key
     (vector? -key) (last))

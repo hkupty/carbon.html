@@ -138,9 +138,12 @@
                             {:data [{:text "one"} {:text "two"}]})))))
 
   (testing :c/slug
-    (is (match? [:p {:id "the_id"} "xx"] (p/render '[:p {:id [:c/slug :id]} "xx"] {:id "the id"}))))
+    (is (match? [:p {:id "the_id"} "xx"] (p/render '[:p {:id [:c/slug :id]} "xx"] {:id "the id"})))
 
-  (testing "tested"
-    (is (match? [:div [:p {:id "the_id"} "xx"]] (p/render '[:div [:c/let [obj [:obj]]  [:p {:id [:c/slug obj :id]} "xx"]]] {:obj {:id "the id"}}))))
+    (testing "nested"
+      (is (match? [:div [:p {:id "the_id"} "xx"]] (p/render '[:div [:c/let [obj [:obj]]  [:p {:id [:c/slug obj :id]} "xx"]]] {:obj {:id "the id"}})))))
+
+  (testing :c/id
+    (is (match? [:p {:id "the_id"} [:a {:href "#the_id"} "xx"]] (p/render '[:p {:id [:c/slug :id]} [:a {:href [:c/id :id]} "xx"]] {:id "the id"}))))
   )
 
