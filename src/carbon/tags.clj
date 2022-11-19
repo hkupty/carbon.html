@@ -10,6 +10,9 @@
       (apply -fn (:fn data) args)
       (apply -fn args))))
 
+(defn path? [-val] (or (coll? -val)
+                       (keyword? -val)))
+
 (defn zoom
   ([-map -path] (zoom -map -path nil))
   ([-map -path -default]
@@ -51,8 +54,7 @@
 
 (defmethod carbon-tag :c/slug -slug [_ val-or-path]
   (cond->> val-or-path
-    (or (keyword? val-or-path)
-        (vector? val-or-path)) (apply zoom *ctx*)
+    (path? val-or-path) (zoom *ctx*)
     true (slug)))
 
 (defmethod carbon-tag :c/kv -kv [_ -key]
