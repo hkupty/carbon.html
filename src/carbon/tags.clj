@@ -15,6 +15,11 @@
   ([-map -path -default]
   ((if (coll? -path) get-in get) -map -path -default)))
 
+(defn slug [-str]
+  (-> -str
+      (str/trim)
+      (str/replace #" " "_")))
+
 (defmulti carbon-tag (fn [tag & args] tag))
 (defmethod carbon-tag :default -default [tag & args] (into [tag] args))
 
@@ -44,6 +49,11 @@
 (defmethod carbon-tag :c/merge -merge [_ & coll]
   (apply merge coll))
 
+(defmethod carbon-tag :c/slug -slug [_ val-or-path]
+  (cond->> val-or-path
+    (or (keyword? val-or-path)
+        (vector? val-or-path)) (apply zoom *ctx*)
+    true (slug)))
 
 (defmethod carbon-tag :c/kv -kv [_ -key]
   {(cond-> -key
