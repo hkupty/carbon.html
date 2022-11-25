@@ -38,9 +38,20 @@
           i))
       expr)))
 
+(defn get-value-in-path [-key -val]
+  (let [[base & -path] -val
+        is-base? (coll? base)
+        -map (if is-base?
+               base
+               tags/*ctx*)
+        full-path (if (not is-base?)
+                    (cons base -path)
+                    -path)]
+    (tags/zoom -map full-path (:default (meta -val) -key))))
+
 (defn value-bind [-key -path]
   (cond
-    (vector? -path) (tags/zoom tags/*ctx* -path (:default (meta -path) -key))
+    (coll? -path) (get-value-in-path -key -path)
     (keyword? -path) (tags/zoom tags/*ctx* -path (:default (meta -path) -key))
     :else -path))
 

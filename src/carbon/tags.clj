@@ -10,10 +10,20 @@
       (apply -fn (:fn data) args)
       (apply -fn args))))
 
+(defn path? [-val] (or (coll? -val)
+                       (keyword? -val)))
+
 (defn zoom
+  ([-path] (zoom *ctx* -path nil))
   ([-map -path] (zoom -map -path nil))
   ([-map -path -default]
   ((if (coll? -path) get-in get) -map -path -default)))
+
+(defn slug [-str]
+  (-> -str
+      (str/trim)
+      (str/replace #" " "_")
+      (str/lower-case)))
 
 (defmulti carbon-tag (fn [tag & args] tag))
 (defmethod carbon-tag :default -default [tag & args] (into [tag] args))
@@ -44,6 +54,15 @@
 (defmethod carbon-tag :c/merge -merge [_ & coll]
   (apply merge coll))
 
+(defmethod carbon-tag :c/slug -slug [_ & val-or-path]
+  (slug (if (not (string? (first val-or-path)))
+          (apply zoom val-or-path)
+      (first val-or-path))))
+
+(defmethod carbon-tag :c/id -id [_ & val-or-path]
+  (str "#" (slug (if (not (string? (first val-or-path)))
+          (apply zoom val-or-path)
+      (first val-or-path)))))
 
 (defmethod carbon-tag :c/kv -kv [_ -key]
   {(cond-> -key
