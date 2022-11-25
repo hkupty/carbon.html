@@ -11,6 +11,8 @@
 
 (def tags (into #{} (keys (methods tags/carbon-tag))))
 
+(def ^:dynamic microdata {})
+
 (def exported-fns
   {'odd? odd?
    'even? even?
@@ -26,6 +28,22 @@
    '+ +
    '- -
    '/ /})
+
+(defn process-microdata-tag [-key -opt data]
+  (let [[-new-tag base-opts] (-key microdata [-key {}])
+        has-opt? (map? -opt)]
+    (into
+      [-new-tag (cond->> base-opts
+                has-opt? (merge -opt))]
+      (cond->> data
+        (not has-opt?) (concat [-opt])))))
+
+(comment
+  (binding [microdata {:book [:p {:itemscope true
+                                  :itemtype "https://schema.org/Book"}]}]
+    (process-microdata-tag :book "a" []))
+  
+  )
 
 (declare process)
 
@@ -50,6 +68,8 @@
     (let [[-key bind & forms] element]
 
       (cond
+        (some? (-key microdata)) (process-microdata-tag -key bind forms)
+
         (binds -key) (apply syntax/carbon-bind -key bind forms)
 
         (conds -key) (apply syntax/carbon-cond
