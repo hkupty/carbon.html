@@ -60,11 +60,6 @@
         (filter-keys keyword?)
         -map))
 
-(comment
-  
-  (pass-on {:this true 'this false})
-  
-  )
 
 ;;; Exported tags
 
@@ -183,13 +178,4 @@
    :lines carbon-lines
    :id carbon-id
    :with-defaults carbon-defaults
-   :html-escape carbon-html-escape
-   })
-
-(comment
-  (tags-v2/process-tree '[:when data [:merge {:x 1} {:x 3}]]
-                        {:data true
-                         :nested {:x "something"}}
-                        default-tags)
-  
-  )
+   :html-escape carbon-html-escape})
