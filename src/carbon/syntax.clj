@@ -1,128 +1,179 @@
 (ns carbon.syntax
-  (:require [clojure.edn :as edn]
-            [carbon.debug :as debug]
-            [carbon.tags :as tags]
-            [clojure.java.io :as io]
-            [clojure.math.combinatorics :as combo]
-            [clojure.walk :refer [postwalk]]
-            [carbon.util :as util])
-  (:import (java.io File PushbackReader)))
+  (:require [carbon.tags :as tags]
+            [carbon.symbols :as syms]
+            [carbon.params :as params]
+            [carbon.opts :as opts]
+            [carbon.util :refer [map-vals filter-keys]]
+            [clojure.string :as str]))
 
-(def ^:private search-folders (atom []))
+(defn keys-when-map [-kv] (cond-> -kv (map-entry? -kv) (key)))
+(defn vals-when-map [-kv] (cond-> -kv (map-entry? -kv) (val)))
 
-;; there might be dragons in using concat here
-(defn add-to-search-folders! [& lst] (swap! search-folders concat lst))
+(defn produce-linear [processor]
+  (fn -linearize ([data] (-linearize data {}))
+    ([data linear]
+     (let [[-k vs] (first data)
+           iter (rest data)]
+       (if (seq iter)
+         (mapcat (fn [v] (-linearize iter (assoc linear -k v))) vs)
+         (map (fn [v] (assoc linear -k (processor v))) vs))))))
 
-(defn find-template [template-name]
-  (first
-    (eduction
-      (map (fn [obj] (cond-> obj string? (io/file))))
-      (mapcat file-seq)
-      (filter (fn [^File file] (.isFile file)))
-      (filter (fn [^File file]
-                (= (.getName file) template-name)))
-      @search-folders)))
 
-(defn read-resource [resource]
-  (try
-    (edn/read (PushbackReader. (io/reader (find-template resource))))
-    (catch Exception ex
-      (throw (ex-info "Resource not found" {:resource resource} ex)))))
-
-(defn replacer [sym-map]
-  (fn -step [expr]
-    (postwalk
-      (fn -replace [i]
-        (if (symbol? i)
-          (get sym-map i i)
-          i))
-      expr)))
-
-(defn get-value-in-path [-key -val]
-  (let [[base & -path] -val
-        is-base? (coll? base)
-        -map (if is-base?
-               base
-               tags/*ctx*)
-        full-path (if (not is-base?)
-                    (cons base -path)
-                    -path)]
-    (tags/zoom -map full-path (:default (meta -val) -key))))
-
-(defn value-bind [-key -path]
+(defn evaluate [expr]
   (cond
-    (coll? -path) (get-value-in-path -key -path)
-    (keyword? -path) (tags/zoom tags/*ctx* -path (:default (meta -path) -key))
-    :else -path))
+    (nil? expr) false
+    (boolean? expr) expr
+    (sequential? expr) (some? (seq expr))
+    (map? expr) (some? (seq expr))
+    (symbol? expr) (some? (some-> expr resolve))
+    :else (some? expr)))
 
-(defn normalize-bindings [binds]
+(defn slug [-str]
+  (some-> -str
+          (cond-> (keyword? -str) (name))
+          (str/trim)
+          (str/replace #"[ .]+" "_")
+          (str/lower-case)))
+
+(defn deslug [-str]
+  (some-> -str
+          (cond-> (keyword? -str) (name))
+          (str/trim)
+          (str/replace #"[-_.]+" " ")
+          (str/split #" ")
+          (->>
+            (map str/capitalize)
+            (str/join " "))))
+
+(defn- process-map [-map-like base-map components]
   (into {}
-        (map (fn [[-key -path]] [-key (value-bind -key -path)]))
-        (apply hash-map binds)))
+         (comp
+          params/xf-keyword-map
+          (map-vals (fn [sym] (tags/process-tree sym base-map components))))
+        (cond-> -map-like
+          (symbol? -map-like) (syms/process-symbol base-map))))
 
-(defn bind-impl [sym-map exprs] (into [] (map (replacer sym-map)) exprs))
+(defn pass-on [-map]
+  (into {}
+        (filter-keys keyword?)
+        -map))
 
-;; Bind: Binds one or more symbols to an expression.
-;; Such expression will be evaluated.
-;; Remaining expressions will have replaced the symbol by the value of the expression
-(defmulti carbon-bind (fn [tag & _] tag))
-(defmethod carbon-bind :default [_ ctx & args] (vec args))
 
-;; Declares a component for future use.
-;; Pre-binds values to be used in component, which will be replaced by
-;; the supplied (default) value if not overwritten by the caller
-;; i.e. [:c/declare [message "Hello world"] [:div [:p message]]]
-(defmethod carbon-bind :c/declare [_ binds & exprs]
-  (let [sym-map (into {}
-                      (comp
-                        (map vec)
-                        (filter (comp symbol? first)))
-                      (partition 2 binds))]
-    (cond->> exprs (seq sym-map) (bind-impl sym-map))))
+;;; Exported tags
 
-(defn- cartesian-product [sym-map]
-  (try (let [-ks (keys sym-map)
-        -vs (map (fn [-k] (get sym-map -k)) -ks)]
-    (into []
-          (map (fn [-cp] (into {} (map vector -ks -cp))))
-          (apply combo/cartesian-product -vs)))
-       (catch Exception ex
-         (throw (ex-info "Cannot build bindings"
-                        {:symbols sym-map}
-                        ex)))))
+(defn carbon-for [[binds & forms] base-map components]
+  (let  [processed-map (process-map (partition 2 binds) base-map components)
+         linearize (produce-linear keys-when-map)]
+    (->> processed-map
+         linearize
+         (mapcat (fn [argmap]
+                   (let [context (merge base-map argmap)]
+                     (map (fn [form] (tags/process-tree form context components))
+                          forms)))))))
+(defn carbon-forv [[binds & forms] base-map components]
+  (let  [processed-map (process-map (partition 2 binds) base-map components)
+         linearize (produce-linear vals-when-map)]
+    (->> processed-map
+         linearize
+         (mapcat (fn [argmap]
+                   (let [context (merge base-map argmap)]
+                     (map (fn [form] (tags/process-tree form context components))
+                          forms)))))))
 
-(defmethod carbon-bind :c/for [_ binds & exprs]
-  (let [syms (cartesian-product (normalize-bindings binds))]
-    (transduce
-        (mapcat (fn [sym-map] (bind-impl sym-map exprs)))
-        conj
-        []
-        syms)))
+(defn carbon-with [[binds & forms] base-map components]
+  (let [context (process-map (partition 2 binds) base-map components)]
+    (map
+      (fn [form] (tags/process-tree form (merge base-map context) components))
+      forms)))
 
-;; Declares variables to be used inside the `exprs` block
-;; The values in the binding block are expected to be a path to getting
-;; the real values from the context
-;; i.e. [:c/let [message [:user :message]] [:div [:p message]]]
-;; The values can have defaults applied in case context doesn't find a value
-;; i.e. [:c/let [message ^{:default "some default value"} [:missing-key]] [:div [:p message]]]
-(defmethod carbon-bind :c/let[_ binds & exprs] (bind-impl (normalize-bindings binds) exprs))
+(defn carbon-if [[pred form-true form-false] argmap components]
+  (tags/process-tree
+    (if (evaluate (tags/process-tree pred argmap components))
+      form-true
+      form-false)
+    argmap
+    components))
 
-;; Applies a component into this section, replacing the content of the variables
-;; declared in it with the ones supplied as `binds` in this block.
-;; see :c/declare for default values
-(defmethod carbon-bind :c/component [_ binds component]
-  (bind-impl (normalize-bindings binds)
-                    (read-resource (cond-> component (keyword? component) (-> (name) (str ".edn"))))))
 
-(defmulti carbon-cond (fn [tag & _] tag))
-(defmethod carbon-cond :default [_ ctx & args] (vec args))
+(defn carbon-when [[pred & forms] argmap components]
+    (when (evaluate (tags/process-tree pred argmap components))
+      (map (fn [form] (tags/process-tree form argmap components))
+           forms)))
 
-(defmethod carbon-cond :c/if -if [_ condition true-branch false-branch]
-  (if (true? condition)
-    true-branch
-    false-branch))
+(defn carbon-slug [[sym] base-map components]
+  (slug (cond-> sym
+    (symbol? sym) (syms/process-symbol base-map))))
 
-(defmethod carbon-cond :c/when -when [_ condition branch]
-  (when (true? condition)
-           branch))
+(defn carbon-deslug [[sym] base-map components]
+  (deslug (cond-> sym
+    (symbol? sym) (syms/process-symbol base-map))))
 
+(defn carbon-id [[sym] base-map components]
+  (->> (cond-> sym (symbol? sym) (syms/process-symbol base-map))
+     (slug)
+     (str "#")))
+
+(defn carbon-set-option [[component opts] base-map components]
+  (opts/with-opts (syms/process-symbol component base-map) opts))
+
+(defn carbon-merge [[& maps] base-map components]
+  (params/merge-with-transform-nested
+    {}
+    cat
+    (map #(tags/process-tree % base-map components) maps)))
+
+(defn carbon-defaults [[default-map form & all] base-map components]
+  (let [-opts (pass-on default-map)]
+    (-> form
+        (tags/process-tree (params/merge-params (params/as-keyword-map default-map) base-map) components)
+        (cond-> (seq -opts) (opts/with-opts -opts)))))
+
+(defn carbon-str [[& data] base-map components]
+  (apply str (map #(tags/process-tree % base-map components) data)))
+
+(defn carbon-lines [[& data] _base-map _components]
+  (str/join "\n" data))
+
+(defn carbon-cond [[conditions selector] base-map components]
+  (-> selector
+      (tags/process-tree base-map components)
+      (conditions (:default conditions))
+      (tags/process-tree base-map components)))
+
+(defn carbon-get [[-map -key] base-map components]
+  (tags/process-tree (get (cond
+                              (symbol? -map) (syms/process-symbol -map base-map)
+                              (map? -map) (process-map -map base-map components)
+                              (vector? -map) (tags/process-tree -map base-map components)) (tags/process-tree -key base-map components))
+                        base-map components))
+
+(defn carbon-debug [[tree] base-map components]
+  (println [tree base-map])
+  tree)
+
+(defn carbon-select-first [[lookup value tree] base-map components]
+  (first (filter (comp (partial = value) lookup)
+        (tags/process-tree tree base-map components))))
+
+(defn carbon-html-escape [[-val] _base-map _components]
+  (str/escape -val {\< "&lt;", \> "&gt;", \& "&amp;"}))
+
+
+(def default-tags
+  {:for carbon-for
+   :forv carbon-forv
+   :if carbon-if
+   :select carbon-select-first
+   :get carbon-get
+   :debug carbon-debug
+   :pick carbon-cond
+   :when carbon-when
+   :with carbon-with
+   :merge carbon-merge
+   :slug carbon-slug
+   :deslug carbon-deslug
+   :str carbon-str
+   :lines carbon-lines
+   :id carbon-id
+   :with-defaults carbon-defaults
+   :html-escape carbon-html-escape})

@@ -1,73 +1,70 @@
 (ns carbon.tags
-  (:require [clojure.string :as str]))
+  (:require [carbon.util :refer [map-vals]]
+            [carbon.opts :as opts]
+            [carbon.params :as params]
+            [carbon.symbols :as syms]
+            [clojure.string :as str]))
 
-(def ^:dynamic *ctx* {})
+(defn is-hiccup? [x] (and (vector? x)
+                          (some-> x (first) (keyword?))))
 
-(defn run-fn [coll]
-  (let [[-fn & args] coll
-        data (meta -fn)]
-    (if (:carbon? data)
-      (apply -fn (:fn data) args)
-      (apply -fn args))))
+(declare process-tree)
 
-(defn path? [-val] (or (coll? -val)
-                       (keyword? -val)))
+(defn mount [tree argmap components]
+   (let [component-fn (get components (first tree))]
+     (if (nil? component-fn)
+       tree
+       (try
+         (-> tree
+             (rest)
+             (component-fn argmap components))
+         (catch Exception ex
+           (throw (ex-info (str "Unable to mount component "
+                                (name (first tree))
+                                " due to an exception")
+                           {:component (first tree)
+                            :args (rest tree)}
+                           ex)))))))
 
-(defn zoom
-  ([-path] (zoom *ctx* -path nil))
-  ([-map -path] (zoom -map -path nil))
-  ([-map -path -default]
-  ((if (coll? -path) get-in get) -map -path -default)))
+(def xf-unwrap
+  (fn xform [xf]
+    (fn
+      ([] (xf))
+      ([result] (xf result))
+      ([result item]
+       (cond
+         (seq? item) (reduce xf result item)
+         (nil? item) result
+         :else (xf result item))))))
 
-(defn slug [-str]
-  (-> -str
-      (str/trim)
-      (str/replace #" " "_")
-      (str/lower-case)))
-
-(defmulti carbon-tag (fn [tag & args] tag))
-(defmethod carbon-tag :default -default [tag & args] (into [tag] args))
-
-(defmethod carbon-tag :c/style -style [_ & css] [:style (str/join "\n" css)])
-
-(defmethod carbon-tag :c/css -css [_ selector & attributes]
-  (str selector " { "
-       (str/join "; " (map (fn [[-k -v]]
-                            (str (name -k) ": " -v)) (partition 2 attributes)))
-       " }"))
+(defn process-hiccup [tree argmap components]
+  (let [processed (mount tree argmap components)]
+    (cond->> processed
+      (is-hiccup? processed) (into [] (comp (map #(process-tree % argmap components))
+                                            xf-unwrap)))))
 
 
-(defmethod carbon-tag :c/get -get [_ var-path & opt]
-  (apply zoom *ctx* var-path opt))
 
-(defmethod carbon-tag :c/zoom -zoom [_ -map -path & opt] (apply zoom -map -path opt))
+(defn process-tree [tree argmap components]
+  (cond-> tree
+      (symbol? tree) (syms/process-symbol argmap)
+      (map? tree) (->>
+                    (into {}
+                          (map-vals
+                            (fn [-tree]
+                              (cond-> -tree ;; No need to go nested in the maps for now
+                                (symbol? -tree) (syms/process-symbol argmap)
+                                (is-hiccup? -tree) (process-tree argmap components))))))
+      (is-hiccup? tree) (-> (process-hiccup argmap components))))
 
-#_(defmethod carbon-tag :c/link -link [_ -map var-path & opt]
-  (apply zoom *ctx* (zoom -map var-path) opt))
-
-#_(defmethod carbon-tag :c/ctx -ctx [_] *ctx*)
-(defmethod carbon-tag :c/map -map [_ -fn coll]
-  (into []
-        (map (fn [elem] (run-fn [-fn elem])))
-        coll))
-
-(defmethod carbon-tag :c/merge -merge [_ & coll]
-  (apply merge coll))
-
-(defmethod carbon-tag :c/slug -slug [_ & val-or-path]
-  (slug (if (not (string? (first val-or-path)))
-          (apply zoom val-or-path)
-      (first val-or-path))))
-
-(defmethod carbon-tag :c/id -id [_ & val-or-path]
-  (str "#" (slug (if (not (string? (first val-or-path)))
-          (apply zoom val-or-path)
-      (first val-or-path)))))
-
-(defmethod carbon-tag :c/kv -kv [_ -key]
-  {(cond-> -key
-    (vector? -key) (last))
-   (zoom *ctx* -key)})
-
-#_(defmethod carbon-tag :c/str [_ _ & args] (pr-str args))
-
+(defn component [param-keys tree]
+  (fn [component-args base-map components]
+      (let [[opts param-values] (opts/get-opts component-args)]
+        (process-tree
+          (opts/with-opts tree opts)
+          (into {}
+                     (comp
+                       params/xf-keyword-map
+                       (map-vals #(syms/process-symbol % base-map)))
+                (map vector param-keys param-values))
+          components))))
