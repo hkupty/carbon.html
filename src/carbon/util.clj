@@ -15,8 +15,3 @@
 (defn filter-keys
   ([-fn] (filter (comp -fn key)))
   ([-fn coll] (into {} (filter-keys -fn) coll)))
-
-(defn with-options [args]
-  (if (map? (first args))
-           ((juxt first next) args)
-           [{} args]))

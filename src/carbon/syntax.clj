@@ -6,8 +6,6 @@
             [carbon.util :refer [map-vals filter-keys]]
             [clojure.string :as str]))
 
-(defn tap [x] (println x) x)
-
 (defn keys-when-map [-kv] (cond-> -kv (map-entry? -kv) (key)))
 (defn vals-when-map [-kv] (cond-> -kv (map-entry? -kv) (val)))
 
@@ -119,10 +117,10 @@
   (opts/with-opts (syms/process-symbol component base-map) opts))
 
 (defn carbon-merge [[& maps] base-map components]
-  (tap (params/merge-with-transform-nested
+  (params/merge-with-transform-nested
     {}
     cat
-    (map #(tags/process-tree % base-map components) maps))))
+    (map #(tags/process-tree % base-map components) maps)))
 
 (defn carbon-defaults [[default-map form & all] base-map components]
   (let [-opts (pass-on default-map)]
@@ -150,7 +148,7 @@
                         base-map components))
 
 (defn carbon-debug [[tree] base-map components]
-  (tap [tree base-map])
+  (println [tree base-map])
   tree)
 
 (defn carbon-select-first [[lookup value tree] base-map components]

@@ -26,8 +26,6 @@
          (println (ex-data last-ex#))
          (throw (ex-info (ex-message e#) {:components flattened#} last-ex#))))))
 
-(defn tap [x] (println x) x)
-
 ;; Low-level API
 (defn render [tree context components]
   (tags/process-tree tree context components))

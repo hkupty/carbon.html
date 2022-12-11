@@ -5,9 +5,6 @@
             [carbon.symbols :as syms]
             [clojure.string :as str]))
 
-(defn tap [x] (println x) x)
-(defn label [& x] (println x) (last x))
-
 (defn is-hiccup? [x] (and (vector? x)
                           (some-> x (first) (keyword?))))
 
