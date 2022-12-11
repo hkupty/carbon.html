@@ -1,119 +1,100 @@
 (ns carbon.html-test
   (:require [clojure.test :refer [deftest testing is]]
-            [carbon.processor :as p]
+            [carbon.v2.processor :as p]
             [clojure.java.io :as io]
             [matcher-combinators.test] ;; adds support for `match?` and `thrown-match?` in `is` expressions
             [matcher-combinators.matchers :as m]
             [clojure.string :as str]
             [clojure.edn :as edn]
-            [carbon.debug :as d]
-            [carbon.tags :as tags]
-            [carbon.syntax :as syntax])
-  (:import (java.io File)))
+            [carbon.v2.tags :as tags]
+            [carbon.v2.syntax :as syntax])
+  (:import (java.io File)
+           (java.time Instant)
+           (java.time.temporal ChronoField)))
 
-(deftest carbon-syntax
-  (testing :c/for
+(deftest carbon-v2-syntax
+  (testing :for
     (is (match? [:div [:p 1] [:p 2] [:p 3]]
-                (p/render '[:div [:c/for [i [:items]] [:p i]]]
-                         {:items [1 2 3]})))
+                (p/render '[:div [:for [i items] [:p i]]]
+                         {:items [1 2 3]}
+                         syntax/default-tags))))
 
-    (is (match? [:div [:p 10] [:p 3] [:p 20] [:p 6]]
-                (p/render '[:div [:c/for [base [:items]
-                                         m [:mult]]
-                                 [:p [* base m]]]]
-                         {:items [1 2]
-                          :mult [10 3]})))
 
-    (is (match? [:div [:p 10] [:p 20]]
-                (p/render '[:div [:c/for [base [:items]
-                                         m [:mult]]
-                                 [:p [* base m]]]]
-                         {:items [1 2]
-                          :mult [10]}))))
-
-  (testing :c/let
-    ;; TODO Investigate if it can be unwrapped
-    (is (match? [[:div "xxx"]]
-                (p/render '[:c/let [-k [:key]]
-                           [:div -k]]
-                         {:key "xxx"})))
-
-    (is (match? [:div
-                 [:div "xxx"]
-                 [:div "extra-xxx"]]
-                (p/render '[:div [:c/let [-k [:key]]
-                           [:div -k]
-                           [:div [str "extra-" -k]]]]
-                         {:key "xxx"})))
-    (testing "^{:default xxx}"
-      (is (match? [:div [:p "default text"]]
-                  (p/render '[:div [:c/let [text ^{:default "default text"} [:missing-key]]
-                                   [:p text]]]
-                           {})))))
-
-  (testing :c/if
+  (testing :if
     (is (match? [:div [:p "true branch"]]
-                  (p/render '[:div [:c/if [true? [:c/get :is-it-true]]
+                  (p/render '[:div [:if is-it-true
                                    [:p "true branch"]
                                    [:p "false branch"]]]
-                           {:is-it-true true})))
+                           {:is-it-true true}
+                           syntax/default-tags)))
 
    (is (match? [:div [:p "false branch"]]
-                  (p/render '[:div [:c/if [true? [:c/get :is-it-true]]
+                  (p/render '[:div [:if is-it-true
                                    [:p "true branch"]
                                    [:p "false branch"]]]
-                           {:is-it-true false}))))
+                           {:is-it-true false}
+                           syntax/default-tags))))
 
- (testing :c/when
+ (testing :when
     (is (match? [:div [:p "true branch"]]
-                  (p/render '[:div [:c/when [true? [:c/get :is-it-true]]
+                  (p/render '[:div [:when is-it-true
                                    [:p "true branch"]]]
-                           {:is-it-true true})))
+                           {:is-it-true true}
+                           syntax/default-tags)))
 
     (is (match? [:div]
-                (p/render '[:div [:c/when [true? [:c/get :is-it-true]]
+                (p/render '[:div [:when is-it-true
                                   [:p "true branch"]]]
-                          {:is-it-true false}))))
- (testing :c/declare
-   (let [temp (File/createTempFile "template" ".edn")
-         fname (keyword (first (str/split (.getName temp) #"\.")))]
-     (spit (io/output-stream temp) (pr-str '[:c/declare [base "value"] [:p base]]))
-     (syntax/add-to-search-folders! (.getParentFile temp))
-
+                          {:is-it-true false}
+                          syntax/default-tags))))
+(testing :component
+   (testing "simple component"
      (is (match? [:div [:p "Amazing"]]
-                 (p/render [:div [:c/component '[base [:base]] fname]]
-                           {:base "Amazing"})))
+               (p/render '[:div [:Component argument]]
+                         {:argument "Amazing"}
+                         {:Component (tags/component ['base] [:p 'base])}))))
 
-     (.delete temp)))
+   (testing "custom function"
+     (is (match? [:p 150]
+                   (p/render [:calc 30]
+                             {}
+                             {:calc
+                              (fn [[arg] _base-map _components]
+                                [:p (+ 120 arg)])})))))
 
  (testing "attribute metadata"
     (testing "empty metadata"
-      (is (match? [:p {} "text"] (p/render '[:p {} "text"] {}))))
+      (is (match? [:p {} "text"] (p/render '[:p {} "text"] {} syntax/default-tags))))
 
   (testing "static metadata"
-      (is (match? [:p {:x 1} "text"] (p/render '[:p {:x 1} "text"] {}))))
+      (is (match? [:p {:x 1} "text"] (p/render '[:p {:x 1} "text"] {} syntax/default-tags))))
 
   (testing "dynamic metadata"
     (is (match? [:p {:x "true"} "text"]
                 (p/render '[:p
-                            {:x [:c/if [:c/get :data] "true" "false"]}
+                            {:x [:if data "true" "false"]}
                             "text"]
-                          {:data true})))
+                          {:data true}
+                          syntax/default-tags)))
+
     (is (match? [:p {:x "something"} "text"]
-                (p/render '[:p [:c/when [:c/get :data]
+                (p/render '[:p [:when 'data
                                 {:x "something"}]
                             "text"]
-                          {:data true})))
+                          {:data true}
+                          syntax/default-tags)))
 
     (is (match? [:p {:x "something"} "text"]
-                (p/render '[:p [:c/when [:c/get :data]
-                                [:c/merge {:x "discard"} {:x "something"}]]
+                (p/render '[:p [:when data
+                                [:merge {:x "discard"} {:x "something"}]]
                             "text"]
-                          {:data true})))
+                          {:data true}
+                          syntax/default-tags)))
 
     (is (match? [:p {:x "something"} "text"]
-                (p/render '[:p [:c/when [:c/get :data]
-                                [:c/kv [:nested :x]]]
+                (p/render '[:p [:when data
+                                nested]
                             "text"]
                           {:data true
-                           :nested {:x "something"}}))))))
+                           :nested {:x "something"}}
+                          syntax/default-tags))))))
