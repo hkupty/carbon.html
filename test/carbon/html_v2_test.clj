@@ -59,7 +59,7 @@
                    (p/render [:calc 30]
                              {}
                              {:calc
-                              (fn [[arg] _base-map]
+                              (fn [[arg] _base-map _components]
                                 [:p (+ 120 arg)])})))))
 
  (testing "attribute metadata"
