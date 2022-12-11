@@ -4,14 +4,9 @@
 (defn process-symbol [sym params]
   (if (not (symbol? sym))
     sym
-    (if-let [resolved (params (keyword (name sym)))]
+    (let [resolved (params (keyword (namespace sym) (name sym)))]
+      (if (some? resolved)
       resolved
-      (if-let [resolved (some-> sym
-                            namespace
-                            (str/split #"\.")
-                            (conj (name sym))
-                            (->>
-                              (map keyword)
-                              (get-in params)))]
-      resolved
-      sym))))
+      (if (some-> sym (meta) :nullable?)
+        nil
+        (throw (ex-info (str "Symbol '" (name sym) "' does not resolve to a known value") {:symbol sym :params params})))))))
