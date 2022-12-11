@@ -1,13 +1,13 @@
 (ns carbon.html-test
   (:require [clojure.test :refer [deftest testing is]]
-            [carbon.v2.processor :as p]
+            [carbon.processor :as p]
             [clojure.java.io :as io]
             [matcher-combinators.test] ;; adds support for `match?` and `thrown-match?` in `is` expressions
             [matcher-combinators.matchers :as m]
             [clojure.string :as str]
             [clojure.edn :as edn]
-            [carbon.v2.tags :as tags]
-            [carbon.v2.syntax :as syntax])
+            [carbon.tags :as tags]
+            [carbon.syntax :as syntax])
   (:import (java.io File)
            (java.time Instant)
            (java.time.temporal ChronoField)))
@@ -97,4 +97,14 @@
                             "text"]
                           {:data true
                            :nested {:x "something"}}
+                          syntax/default-tags)))
+    (is (match? [:p "text"]
+                (p/render '[:p [:when ^:nullable? data
+                                "text"]]
+                          {:data true}
+                          syntax/default-tags)))
+    (is (match? [:p]
+                (p/render '[:p [:when ^:nullable? data
+                                "text"]]
+                          {}
                           syntax/default-tags))))))
