@@ -1,4 +1,4 @@
-(ns carbon.v2.opts)
+(ns carbon.opts)
 
 (defn get-opts
   "Returns a tuple with opts and the input"

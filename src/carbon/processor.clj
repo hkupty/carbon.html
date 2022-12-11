@@ -2,94 +2,38 @@
   (:require [carbon.tags :as tags]
             [carbon.debug :as debug]
             [carbon.syntax :as syntax]
+            [clojure.string :as str]
             [hiccup.page :refer [doctype]]
             [hiccup.core :refer [html]]))
 
-(def binds (into #{} (keys (methods syntax/carbon-bind))))
+(defn flatten-exception [^clojure.lang.ExceptionInfo ex]
+  (when-let [component (some-> ex ex-data :component)]
+    (lazy-seq (cons component (flatten-exception (ex-cause ex))))))
 
-(def conds (into #{} (keys (methods syntax/carbon-cond))))
+(defn last-exception [^clojure.lang.ExceptionInfo ex]
+  (cond-> ex (ex-cause ex) (-> (ex-cause) (recur))))
 
-(def tags (into #{} (keys (methods tags/carbon-tag))))
+(defmacro with-flattened-error [& body]
+  `(try
+     ~@body
+     (catch clojure.lang.ExceptionInfo e#
+       (let [last-ex# (last-exception e#)
+             flattened# (flatten-exception e#)]
+         (println
+           (ex-message e#)
+           (ex-message last-ex#))
+         (println (str/join " -> " flattened#))
+         (println (ex-data last-ex#))
+         (throw (ex-info (ex-message e#) {:components flattened#} last-ex#))))))
 
-(def exported-fns
-  {'odd? odd?
-   'even? even?
-   'true? true?
-   'false? false?
-   '= =
-   '> >
-   '< <
-   '>= >=
-   '<= <=
-   'str str
-   '* *
-   '+ +
-   '- -
-   '/ /})
+(defn tap [x] (println x) x)
 
-(declare process)
+;; Low-level API
+(defn render [tree context components]
+  (tags/process-tree tree context components))
 
-(def linearize
-  (fn [xf]
-    (fn
-      ([] (xf))
-      ([result] (xf result))
-      ([result item]
-       (cond
-         (and (vector? item) (seq item) (every? vector? item)) (reduce xf result item)
-         (some? item) (xf result item)
-         :else result)))))
-
-(defn preprocess [element]
-  (if (not (vector? element))
-    (cond-> element
-      (symbol? element) (-> (exported-fns) (or element))
-      (tags element) (->
-                       (->> (get-method tags/carbon-tag))
-                       (with-meta {:carbon? true :fn element})))
-    (let [[-key bind & forms] element]
-
-      (cond
-        (binds -key) (apply syntax/carbon-bind -key bind forms)
-
-        (conds -key) (apply syntax/carbon-cond
-                                    -key
-                                    (first (process (vector bind)))
-                                    forms)
-
-        :else element))))
-
-(defn postprocess [element]
-  (cond
-    (and (vector? element)
-         (or (fn? (first element))
-             (var? (first element)))) (tags/run-fn element)
-    :else element))
-
-
-(declare process-xf)
-
-(defn process [tree]
-  (let [is-vec? (vector? tree)
-        is-map? (map? tree)]
-    (cond->> tree
-        is-vec? (preprocess) ;; preprocess tree
-        (or is-vec?
-            is-map?) (transduce
-                  process-xf
-                  conj
-                  (or (empty tree) [])))))
-(def process-xf
-  (comp (map preprocess)
-        (map process)
-        (map postprocess)
-        linearize))
-
-(defn render [tree context]
-  (binding [tags/*ctx* context]
-    (process tree)))
-
-(defn render-page [data content]
+;; High-level API
+(defn render-page [tree context components]
   (html {:mode :html}
         (doctype :html5)
-        (render content data)))
+        (render tree context (merge components syntax/default-tags))))

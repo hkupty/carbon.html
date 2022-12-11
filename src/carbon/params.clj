@@ -1,5 +1,5 @@
-(ns carbon.v2.params
-  (:require [carbon.v2.symbols :as syms]
+(ns carbon.params
+  (:require [carbon.symbols :as syms]
             [carbon.util :refer [map-keys]]))
 
 (def xf-keyword-map (map-keys (comp keyword name)))

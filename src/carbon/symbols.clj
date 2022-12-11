@@ -1,4 +1,4 @@
-(ns carbon.v2.symbols
+(ns carbon.symbols
   (:require [clojure.string :as str]))
 
 (defn process-symbol [sym params]
