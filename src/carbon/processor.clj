@@ -25,12 +25,12 @@
          (println (ex-data last-ex#))
          (throw (ex-info (ex-message e#) {:components flattened#} last-ex#))))))
 
-;; Low-level API
-(defn render [tree context components]
-  (tags/process-tree tree context (merge components syntax/default-tags)))
 
 ;; High-level API
+(defn render [tree context components]
+  (html (tags/process-tree tree context (merge components syntax/default-tags))))
+
 (defn render-page [tree context components]
   (html {:mode :html}
         (doctype :html5)
-        (render tree context components)))
+        (tags/process-tree tree context (merge components syntax/default-tags))))
