@@ -1,6 +1,5 @@
 (ns carbon.processor
   (:require [carbon.tags :as tags]
-            [carbon.debug :as debug]
             [carbon.syntax :as syntax]
             [clojure.string :as str]
             [hiccup.page :refer [doctype]]
@@ -28,10 +27,10 @@
 
 ;; Low-level API
 (defn render [tree context components]
-  (tags/process-tree tree context components))
+  (tags/process-tree tree context (merge components syntax/default-tags)))
 
 ;; High-level API
 (defn render-page [tree context components]
   (html {:mode :html}
         (doctype :html5)
-        (render tree context (merge components syntax/default-tags))))
+        (render tree context components)))
