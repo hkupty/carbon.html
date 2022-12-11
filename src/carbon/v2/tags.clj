@@ -9,53 +9,66 @@
 (defn tap [x] (println x) x)
 (defn label [& x] (println x) (last x))
 
-;; TODO find a way to safely recurse without requring within-bind
-(def ^:private ^:dynamic within-bind false)
-(def ^:private ^:dynamic components {})
+(defn is-hiccup? [x] (and (vector? x)
+                          (some-> x (first) (keyword?))))
 
-(def linearize
-  (fn [xf]
+(declare process-tree)
+
+(defn mount [tree argmap components]
+   (let [component-fn (get components (first tree))]
+     (if (nil? component-fn)
+       tree
+       (try
+         (-> tree
+             (rest)
+             (component-fn argmap components))
+         (catch Exception ex
+           (throw (ex-info (str "Unable to mount component "
+                                (name (first tree))
+                                " due to an exception")
+                           {:component (first tree)
+                            :args (rest tree)}
+                           ex)))))))
+
+(def xf-unwrap
+  (fn xform [xf]
     (fn
       ([] (xf))
       ([result] (xf result))
       ([result item]
        (cond
-         (and (vector? item) (seq item) (every? vector? item)) (reduce xf result item)
-         (some? item) (xf result item)
-         :else result)))))
+         (seq? item) (reduce xf result item)
+         (nil? item) result
+         :else (xf result item))))))
 
-(declare process-tree)
+(defn process-hiccup [tree argmap components]
+  (let [processed (mount tree argmap components)]
+    (cond->> processed
+      (is-hiccup? processed) (into [] (comp (map #(process-tree % argmap components))
+                                            xf-unwrap)))))
 
-(defn mount
-  ([tree argmap -components]
-   (binding [components -components]
-     (mount tree argmap)))
-  ([tree argmap]
-   (let [-tree (if-let [component-fn (get components (first tree))]
-                 (component-fn (rest tree) argmap)
-                 tree)
-         -tree (if (not within-bind)
-                 (binding [within-bind true]
-                   (process-tree -tree argmap))
-                 -tree)]
-     (cond->> -tree
-      (sequential? -tree) (into [] linearize)))))
 
-(defn process [argmap]
-  (fn [tree]
-    (cond
-      (symbol? tree) (syms/process-symbol tree argmap)
-      (and (vector? tree)
-           (not (map-entry? tree))
-           (keyword? (first tree))) (mount tree argmap)
-      :else tree)))
 
-(defn process-tree [tree argmap] (prewalk (process argmap) tree))
+(defn process-tree [tree argmap components]
+  (cond-> tree
+      (symbol? tree) (syms/process-symbol argmap)
+      (map? tree) (->>
+                    (into {}
+                          (map-vals
+                            (fn [-tree]
+                              (cond-> -tree ;; No need to go nested in the maps for now
+                                (symbol? -tree) (syms/process-symbol argmap)
+                                (is-hiccup? -tree) (process-tree argmap components))))))
+      (is-hiccup? tree) (-> (process-hiccup argmap components))))
 
-(defn component [param-keys body]
-  (fn [component-args base-params]
+(defn component [param-keys tree]
+  (fn [component-args base-map components]
       (let [[opts param-values] (opts/get-opts component-args)]
         (process-tree
-          (opts/with-opts body opts)
-          (params/with-new-items base-params param-keys param-values)))))
-
+          (opts/with-opts tree opts)
+          (into {}
+                     (comp
+                       params/xf-keyword-map
+                       (map-vals #(syms/process-symbol % base-map)))
+                (map vector param-keys param-values))
+          components))))
