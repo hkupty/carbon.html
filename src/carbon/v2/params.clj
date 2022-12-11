@@ -2,7 +2,7 @@
   (:require [carbon.v2.symbols :as syms]
             [carbon.util :refer [map-keys]]))
 
-(def ^:private -xf-keyword-map (map-keys (comp keyword name)))
+(def xf-keyword-map (map-keys (comp keyword name)))
 
 (defn merge-with-transform-nested [base xf target]
   (transduce
@@ -16,11 +16,11 @@
     target))
 
 (defn merge-params [base-params new-params]
-  (merge-with-transform-nested base-params -xf-keyword-map new-params))
+  (merge-with-transform-nested base-params xf-keyword-map new-params))
 
 (defn as-keyword-map [-map]
   (transduce
-    -xf-keyword-map
+    xf-keyword-map
     (completing (fn [acc [k v]]
       (assoc acc k (cond-> v (map? v) (as-keyword-map)))))
     {}
